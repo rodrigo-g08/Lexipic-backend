@@ -37,3 +37,13 @@ const port = process.env.PORT || 3000;
 server.listen(port, () => {
   console.log("Servidor Lexipic escuchando en el puerto", port);
 });
+
+app.post("/api/echo", (req, res) => {
+  const { message, language } = req.body || {};
+  res.json({
+    ok: true,
+    received: { message, language },
+    info: "Echo desde Lexipic backend 🚀",
+  });
+});
+
