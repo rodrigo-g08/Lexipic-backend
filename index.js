@@ -1,9 +1,25 @@
+import "dotenv/config";
+import mongoose from "mongoose";
+
+
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 
 const app = express();
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error("❌ Error: MONGODB_URI no está definida");
+  process.exit(1);
+}
+
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log("✅ Conectado a MongoDB Atlas"))
+  .catch(err => console.error("❌ Error de conexión MongoDB:", err));
+
+
 app.use(cors());
 app.use(express.json());
 
