@@ -1,5 +1,6 @@
 import "dotenv/config";
 import mongoose from "mongoose";
+import { ChatMessage } from "./models/ChatMessage.js";
 
 
 import express from "express";
@@ -132,6 +133,45 @@ app.post("/api/generate-pictograms", async (req, res) => {
       ok: false,
       error: "Error interno generando pictogramas",
     });
+  }
+});
+
+app.post("/api/messages", async (req, res) => {
+  try {
+    const { role, text, pictograms, language, sessionId } = req.body || {};
+
+    if (role !== "user" && role !== "assistant") {
+      return res.status(400).json({ ok: false, error: "Role inválido" });
+    }
+
+    const doc = await ChatMessage.create({
+      role,
+      text: text || "",
+      pictograms: Array.isArray(pictograms) ? pictograms : [],
+      language: language || "es",
+      sessionId: sessionId || null,
+    });
+
+    res.status(201).json({ ok: true, message: doc });
+  } catch (err) {
+    console.error("Error en POST /api/messages:", err);
+    res.status(500).json({ ok: false, error: "Error guardando mensaje" });
+  }
+});
+
+app.get("/api/messages", async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 50;
+
+    const docs = await ChatMessage.find({})
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    res.json({ ok: true, messages: docs });
+  } catch (err) {
+    console.error("Error en GET /api/messages:", err);
+    res.status(500).json({ ok: false, error: "Error obteniendo mensajes" });
   }
 });
 
