@@ -2,6 +2,8 @@ import "dotenv/config";
 import mongoose from "mongoose";
 import { ChatMessage } from "./models/ChatMessage.js";
 
+import jwt from "jsonwebtoken";
+import { User } from "./models/User.js";
 
 import express from "express";
 import http from "http";
@@ -10,6 +12,8 @@ import cors from "cors";
 
 const app = express();
 const MONGODB_URI = process.env.MONGODB_URI;
+const JWT_SECRET = process.env.JWT_SECRET || "LEXIPICAI123!";
+
 
 if (!MONGODB_URI) {
   console.error("❌ Error: MONGODB_URI no está definida");
@@ -73,6 +77,118 @@ function dedupePictogramsBackend(list, max = MAX_PICTOGRAMS) {
 
   return result;
 }
+
+function authMiddleware(req, res, next) {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+
+  if (!token) {
+    return res.status(401).json({ ok: false, error: "No autorizado" });
+  }
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.userId = payload.userId;
+    next();
+  } catch (err) {
+    return res.status(401).json({ ok: false, error: "Token inválido" });
+  }
+}
+
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { email, password, name } = req.body || {};
+
+    if (!email || !password || !name) {
+      return res.status(400).json({ ok: false, error: "Faltan campos" });
+    }
+
+    const exists = await User.findOne({ email });
+    if (exists) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "El email ya está registrado" });
+    }
+
+    const passwordHash = await User.hashPassword(password);
+
+    const user = await User.create({ email, passwordHash, name });
+
+    const token = jwt.sign({ userId: user._id }, JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    res.status(201).json({
+      ok: true,
+      user: { id: user._id, email: user.email, name: user.name },
+      token,
+    });
+  } catch (err) {
+    console.error("Error en POST /api/auth/register:", err);
+    res
+      .status(500)
+      .json({ ok: false, error: "Error registrando usuario" });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Faltan email o contraseña" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Credenciales inválidas" });
+    }
+
+    const valid = await user.comparePassword(password);
+    if (!valid) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Credenciales inválidas" });
+    }
+
+    const token = jwt.sign({ userId: user._id }, JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    res.json({
+      ok: true,
+      user: { id: user._id, email: user.email, name: user.name },
+      token,
+    });
+  } catch (err) {
+    console.error("Error en POST /api/auth/login:", err);
+    res.status(500).json({ ok: false, error: "Error en login" });
+  }
+});
+
+app.get("/api/auth/me", authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).lean();
+    if (!user) {
+      return res
+        .status(404)
+        .json({ ok: false, error: "Usuario no encontrado" });
+    }
+
+    res.json({
+      ok: true,
+      user: { id: user._id, email: user.email, name: user.name },
+    });
+  } catch (err) {
+    console.error("Error en GET /api/auth/me:", err);
+    res.status(500).json({ ok: false, error: "Error obteniendo usuario" });
+  }
+});
+
 
 app.post("/api/generate-pictograms", async (req, res) => {
   const { text, language = "es" } = req.body || {};
@@ -178,7 +294,7 @@ app.get("/api/messages", async (req, res) => {
 
 // Endpoint de prueba
 app.get("/", (req, res) => {
-  res.send("Lexipic backend OK");
+  res.send("Lexipic backend OK v2");
 });
 
 // Servidor HTTP + WebSockets
