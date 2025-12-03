@@ -4,6 +4,7 @@ import { ChatMessage } from "./models/ChatMessage.js";
 
 import jwt from "jsonwebtoken";
 import { User } from "./models/User.js";
+import conversationRoutes from "./routes/conversations.js";
 
 import express from "express";
 import http from "http";
@@ -94,6 +95,7 @@ function authMiddleware(req, res, next) {
     return res.status(401).json({ ok: false, error: "Token inválido" });
   }
 }
+
 
 app.post("/api/auth/register", async (req, res) => {
   try {
@@ -332,3 +334,4 @@ app.post("/api/echo", (req, res) => {
   });
 });
 
+app.use("/api", conversationRoutes);
